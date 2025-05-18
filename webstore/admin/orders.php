@@ -120,7 +120,8 @@ include 'includes/header.php';
                         <select class="form-select" id="orderStatus" name="status" required>
                             <option value="pending">Pending</option>
                             <option value="processing">Processing</option>
-                            <option value="completed">Completed</option>
+                            <option value="shipped">Shipped</option>
+                            <option value="delivered">Delivered</option>
                             <option value="cancelled">Cancelled</option>
                         </select>
                     </div>
@@ -157,7 +158,8 @@ include 'includes/header.php';
 
 .status-badge.pending { background: #fff3cd; color: #856404; }
 .status-badge.processing { background: #cce5ff; color: #004085; }
-.status-badge.completed { background: #d4edda; color: #155724; }
+.status-badge.shipped { background: #e8f5e9; color: #2e7d32; }
+.status-badge.delivered { background: #d4edda; color: #155724; }
 .status-badge.cancelled { background: #f8d7da; color: #721c24; }
 
 /* Order Details Styles */
@@ -257,21 +259,34 @@ document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('statusForm');
         const formData = new FormData(form);
 
+        // Debug form data
+        console.log('Form data being sent:', {
+            order_id: formData.get('order_id'),
+            status: formData.get('status')
+        });
+
         fetch('update-order-status.php', {
             method: 'POST',
-            body: formData
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Response status:', response.status);
+            return response.json();
+        })
         .then(data => {
+            console.log('Response data:', data);
             if (data.success) {
                 location.reload();
             } else {
-                alert('Error updating order status');
+                alert(data.message || 'Error updating order status');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('Error updating order status');
+            alert('Error updating order status: ' + error.message);
         })
         .finally(() => {
             statusModal.hide();

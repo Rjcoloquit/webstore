@@ -14,6 +14,10 @@
     <link rel="stylesheet" href="css/styles.css">
     <!-- Favicon -->
     <link rel="icon" href="assets/images/favicon.ico">
+    <!-- jQuery (required for Bootstrap) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <style>
       .navbar-glass {
         background: rgba(255,255,255,0.92) !important;
@@ -47,6 +51,18 @@
         padding: 0.2em 0.6em;
         border-radius: 1em;
         z-index: 2;
+      }
+      /* Fix for dropdown menu */
+      .dropdown-menu {
+        margin-top: 0.5rem !important;
+        border: none !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+      }
+      .dropdown-toggle {
+        cursor: pointer !important;
+      }
+      .nav-item.dropdown {
+        position: relative !important;
       }
     </style>
 </head>
@@ -84,9 +100,9 @@
         <li class="nav-item">
           <?php if (isLoggedIn()): ?>
             <div class="nav-item dropdown">
-              <a class="nav-link rounded-pill dropdown-toggle d-flex align-items-center gap-2" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <button class="nav-link rounded-pill dropdown-toggle d-flex align-items-center gap-2" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                 <i class="fa fa-user"></i> <?php echo htmlspecialchars($_SESSION['full_name']); ?>
-              </a>
+              </button>
               <ul class="dropdown-menu dropdown-menu-end shadow rounded-4 mt-2" aria-labelledby="userDropdown">
                 <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
                   <li><a class="dropdown-item text-primary fw-bold" href="admin/dashboard.php"><i class="fas fa-crown me-2"></i> Admin Panel</a></li>
@@ -123,5 +139,27 @@
         </div>
     <?php endif; ?>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize all dropdowns
+    var dropdowns = [].slice.call(document.querySelectorAll('[data-bs-toggle="dropdown"]'))
+    dropdowns.map(function (dropdownToggle) {
+        return new bootstrap.Dropdown(dropdownToggle, {
+            offset: [0, 10],
+            flip: true,
+            boundary: 'viewport',
+            reference: 'toggle',
+            display: 'dynamic'
+        });
+    });
+
+    // Add click event listener to dropdown toggle
+    document.querySelector('#userDropdown').addEventListener('click', function(e) {
+        e.stopPropagation();
+        bootstrap.Dropdown.getOrCreateInstance(this).toggle();
+    });
+});
+</script>
 </body>
 </html>

@@ -112,6 +112,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 error_log("Inventory change logged");
             }
             
+            // Calculate and update the final order total
+            $orderTotal = calculateOrderTotal($orderId);
+            $stmt = $conn->prepare("UPDATE orders SET total_amount = ? WHERE order_id = ?");
+            $stmt->bind_param("di", $orderTotal, $orderId);
+            $stmt->execute();
+            error_log("Order total updated to: " . $orderTotal);
+            
             // Clear cart
             clearCart($userId);
             error_log("Cart cleared for user: $userId");

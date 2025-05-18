@@ -516,6 +516,15 @@ function getOrderItems($orderId) {
     return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 
+function calculateOrderTotal($orderId) {
+    $conn = getDBConnection();
+    $stmt = $conn->prepare("SELECT SUM(quantity * price) as total FROM order_items WHERE order_id = ?");
+    $stmt->bind_param("i", $orderId);
+    $stmt->execute();
+    $result = $stmt->get_result()->fetch_assoc();
+    return $result['total'] ?? 0;
+}
+
 function countOrderItems($orderId) {
     $conn = getDBConnection();
     $stmt = $conn->prepare("SELECT COUNT(*) AS count FROM order_items WHERE order_id = ?");
@@ -530,6 +539,50 @@ function getUserOrder($userId, $orderId) {
     $stmt->bind_param("ii", $userId, $orderId);
     $stmt->execute();
     return $stmt->get_result()->fetch_assoc();
+}
+
+function cancelOrder($userId, $orderId) {
+    $conn = getDBConnection();
+    try {
+        // Start transaction
+        $conn->begin_transaction();
+        
+        // Get order details and verify it belongs to the user and is cancellable
+        $stmt = $conn->prepare("SELECT * FROM orders WHERE user_id = ? AND order_id = ? AND status IN ('pending', 'processing')");
+        $stmt->bind_param("ii", $userId, $orderId);
+        $stmt->execute();
+        $order = $stmt->get_result()->fetch_assoc();
+        
+        if (!$order) {
+            throw new Exception("Order cannot be cancelled");
+        }
+        
+        // Update order status to cancelled
+        $stmt = $conn->prepare("UPDATE orders SET status = 'cancelled' WHERE order_id = ?");
+        $stmt->bind_param("i", $orderId);
+        $stmt->execute();
+        
+        // Get order items
+        $stmt = $conn->prepare("SELECT * FROM order_items WHERE order_id = ?");
+        $stmt->bind_param("i", $orderId);
+        $stmt->execute();
+        $items = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        
+        // Restore stock for each item
+        foreach ($items as $item) {
+            updateProductStock($item['product_id'], $item['quantity']);
+            logInventoryChange($item['product_id'], 'edit', $item['quantity'], $userId);
+        }
+        
+        // Commit transaction
+        $conn->commit();
+        return true;
+    } catch (Exception $e) {
+        // Rollback transaction on error
+        $conn->rollback();
+        error_log("Cancel order error: " . $e->getMessage());
+        throw $e;
+    }
 }
 
 function getTotalOrders() {

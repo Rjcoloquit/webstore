@@ -1,11 +1,9 @@
 <!-- Product Card Component -->
 <div class="product-card">
     <div class="product-link" data-bs-toggle="modal" data-bs-target="#productModal<?php echo $product['product_id']; ?>">
-        <div class="product-image position-relative" style="width: 100%; aspect-ratio: 1 / 1; background: #f8f9fa; border-radius: 1.4rem 1.4rem 0 0; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+        <div class="product-image">
             <img src="<?php echo htmlspecialchars(getProductImageUrl($product)); ?>"
                  alt="<?php echo htmlspecialchars($product['name']); ?>"
-                 class="img-fluid h-100 w-100"
-                 style="object-fit: cover; border-radius: 1.4rem 1.4rem 0 0;"
                  onerror="this.src='uploads/products/default-product.jpg'">
         </div>
         <div class="product-info">
@@ -19,6 +17,28 @@
             </div>
         </div>
     </div>
+    
+    <!-- Add to Cart Form -->
+    <?php if ($product['stock'] > 0): ?>
+        <div class="product-actions">
+            <form action="cart.php" method="post" class="add-to-cart-form">
+                <input type="hidden" name="action" value="add">
+                <input type="hidden" name="product_id" value="<?php echo $product['product_id']; ?>">
+                <input type="hidden" name="quantity" value="1">
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-grow-1">Add to Cart</button>
+                    <?php if (isLoggedIn()): ?>
+                        <button type="button" 
+                                class="btn btn-outline-primary wishlist-toggle <?php echo isInWishlist($_SESSION['user_id'], $product['product_id']) ? 'in-wishlist' : ''; ?>"
+                                data-product-id="<?php echo $product['product_id']; ?>"
+                                title="Add to Wishlist">
+                            <i class="fas fa-heart"></i>
+                        </button>
+                    <?php endif; ?>
+                </div>
+            </form>
+        </div>
+    <?php endif; ?>
 </div>
 
 <!-- Product Modal -->
@@ -87,12 +107,11 @@
 
 <!-- Toast Container -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3">
-    <!-- Cart Toast -->
     <div class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true" id="cartToast">
         <div class="d-flex">
             <div class="toast-body">
                 <i class="fas fa-check-circle me-2"></i>
-                Product added to cart successfully!
+                <span id="cartToastMessage">Product added to cart successfully!</span>
             </div>
             <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
@@ -192,23 +211,18 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize toasts
+    // Initialize toast
     const cartToast = new bootstrap.Toast(document.getElementById('cartToast'));
+    const cartToastMessage = document.getElementById('cartToastMessage');
     const wishlistToast = new bootstrap.Toast(document.getElementById('wishlistToast'));
+    const wishlistToastMessage = document.getElementById('wishlistToastMessage');
     
-    // Handle cart form submission
+    // Handle add to cart form submission
     document.querySelectorAll('.add-to-cart-form').forEach(form => {
         form.addEventListener('submit', function(e) {
             e.preventDefault();
             
             const formData = new FormData(this);
-            const quantity = formData.get('quantity');
-            
-            // Validate quantity
-            if (quantity < 1) {
-                alert('Please enter a valid quantity');
-                return;
-            }
             
             fetch('cart.php', {
                 method: 'POST',
@@ -224,60 +238,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     const cartBadge = document.querySelector('.cart-badge');
                     if (cartBadge) {
                         const currentCount = parseInt(cartBadge.textContent) || 0;
-                        cartBadge.textContent = currentCount + parseInt(quantity);
+                        cartBadge.textContent = currentCount + 1;
                     }
                     
-                    // Show success toast
+                    // Show success message
+                    cartToastMessage.textContent = 'Product added to cart successfully!';
                     cartToast.show();
-                    
-                    // Close modal if it's open
-                    const modal = bootstrap.Modal.getInstance(document.querySelector('.modal.show'));
-                    if (modal) {
-                        modal.hide();
-                    }
                 } else {
                     // Show error message
-                    alert(data.message || 'Error adding product to cart');
+                    cartToastMessage.textContent = data.message || 'Error adding product to cart';
+                    cartToast.show();
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('An error occurred while adding the product to cart');
-            });
-        });
-    });
-    
-    // Handle add to cart from wishlist
-    document.querySelectorAll('.add-to-cart').forEach(button => {
-        button.addEventListener('click', function() {
-            const productId = this.dataset.productId;
-            const quantity = 1; // Default quantity for wishlist items
-            
-            fetch('cart.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: `action=add&product_id=${productId}&quantity=${quantity}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Update cart count in header
-                    const cartBadge = document.querySelector('.cart-badge');
-                    if (cartBadge) {
-                        const currentCount = parseInt(cartBadge.textContent) || 0;
-                        cartBadge.textContent = currentCount + quantity;
-                    }
-                    alert('Product added to cart successfully!');
-                } else {
-                    alert(data.message || 'Error adding product to cart');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while adding the product to cart');
+                cartToastMessage.textContent = 'An error occurred while adding the product to cart';
+                cartToast.show();
             });
         });
     });
@@ -286,11 +262,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.wishlist-toggle').forEach(button => {
         button.addEventListener('click', function(e) {
             e.preventDefault();
-            e.stopPropagation();
             
             const productId = this.dataset.productId;
             const isInWishlist = this.classList.contains('in-wishlist');
-            const toastMessage = document.getElementById('wishlistToastMessage');
+            const action = isInWishlist ? 'remove' : 'add';
             
             fetch('wishlist.php', {
                 method: 'POST',
@@ -298,20 +273,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     'Content-Type': 'application/x-www-form-urlencoded',
                     'X-Requested-With': 'XMLHttpRequest'
                 },
-                body: `action=${isInWishlist ? 'remove' : 'add'}&product_id=${productId}`
+                body: `action=${action}&product_id=${productId}`
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Update wishlist button state
                     this.classList.toggle('in-wishlist');
-                    // Update all wishlist buttons for this product
-                    document.querySelectorAll(`.wishlist-toggle[data-product-id="${productId}"]`).forEach(btn => {
-                        btn.classList.toggle('in-wishlist');
-                    });
-                    
                     // Show appropriate toast message
-                    toastMessage.textContent = isInWishlist ? 
+                    wishlistToastMessage.textContent = isInWishlist ? 
                         'Product removed from wishlist!' : 
                         'Product added to wishlist!';
                     wishlistToast.show();
@@ -319,18 +288,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     // If the product is already in wishlist, update the UI to reflect that
                     if (data.message === 'Product is already in your wishlist') {
                         this.classList.add('in-wishlist');
-                        document.querySelectorAll(`.wishlist-toggle[data-product-id="${productId}"]`).forEach(btn => {
-                            btn.classList.add('in-wishlist');
-                        });
                     }
                     // Show error message
-                    toastMessage.textContent = data.message;
+                    wishlistToastMessage.textContent = data.message;
                     wishlistToast.show();
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                toastMessage.textContent = 'An error occurred while updating the wishlist';
+                wishlistToastMessage.textContent = 'An error occurred while updating the wishlist';
                 wishlistToast.show();
             });
         });
